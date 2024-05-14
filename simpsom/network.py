@@ -168,13 +168,14 @@ class SOMNet:
         init_vec = None
         weights_array = None
         this_weight = None
+        use_pca = isinstance(self.init, str) and self.init == "pca"
 
         # When loaded from file, element 0 contains information on the network shape
         count_weight = 3
 
         if load_file is None:
 
-            if isinstance(self.init, str) and self.init == "pca":
+            if use_pca:
                 logger.warning(
                     "Please make sure that the data have been standardized before using PCA.")
                 logger.info("The weights will be initialized with PCA.")
@@ -210,11 +211,17 @@ class SOMNet:
                     this_weight = weights_array[count_weight]
                     count_weight += 1
 
+                if weights_array is None and use_pca:
+                    # rescale to [-1,1]
+                    i,j = x*2/(self.width-1) - 1, y*2/(self.height-1) - 1
+                    this_weight = i * init_vec[0] + j * init_vec[1]
+
                 self.nodes_list.append(SOMNode(x, y, self.data.shape[1],
                                                self.height, self.width,
                                                self.PBC, self.polygons,
                                                self.xp,
                                                init_vec=init_vec,
+                                               pca=use_pca,
                                                weights_array=this_weight))
 
     def pca(self, matrix: np.ndarray, n_pca: int) -> np.ndarray:
@@ -903,7 +910,8 @@ class SOMNode:
     def __init__(self, x: int, y: int, num_weights: int, net_height: int, net_width: int,
                  PBC: bool, polygons: Polygon, xp: ModuleType = np,
                  init_vec: Union[np.ndarray, None] = None,
-                 weights_array: Union[np.ndarray, None] = None) -> None:
+                 weights_array: Union[np.ndarray, None] = None,
+                pca: bool = False) -> None:
         """Initialize the SOM node.
 
         Args:
@@ -939,7 +947,7 @@ class SOMNode:
         if weights_array is not None:
             self.weights = weights_array
 
-        elif init_vec is not None:
+        elif init_vec is not None and not pca:
             # Sample uniformly in the space spanned by the custom vectors.
             self.weights = (init_vec[1] - init_vec[0]) * self.xp.array(
                 np.random.rand(len(init_vec[0])).astype(np.float32)) + init_vec[0]
